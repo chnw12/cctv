@@ -1,0 +1,25 @@
+0 valve
+0 gate valve
+0 valve handwheel
+0 ball valve
+1 pipe
+1 metal pipe
+1 insulated pipe
+1 pipeline
+2 pump
+2 water pump
+3 electric motor
+4 electrical panel
+4 electrical cabinet
+4 switchboard
+4 control panel
+4 circuit breaker panel
+5 pressure gauge
+5 gauge
+5 thermometer
+6 fire extinguisher
+7 tank
+7 water heater
+8 air duct
+8 ventilation duct
+9 cable tray
