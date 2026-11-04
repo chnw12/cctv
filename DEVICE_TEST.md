@@ -13,7 +13,7 @@
 4. 폰에 "USB 디버깅을 허용하시겠습니까?" 뜨면 **"이 컴퓨터에서 항상 허용" 체크 → 허용**
 5. 연결 확인 — 목록에 `emulator-…`가 아닌 줄이 `device`로 보이면 성공:
    ```bash
-   /c/Users/leecw/AppData/Local/Android/sdk/platform-tools/adb.exe devices
+   "$LOCALAPPDATA/Android/sdk/platform-tools/adb.exe" devices
    ```
    - 아무것도 안 보이면: 케이블 바꾸기, 폰 알림에서 USB 모드를 "파일 전송"으로, 삼성은 PC에 Samsung USB 드라이버 설치
    - `unauthorized`면: 폰 화면의 허용 팝업을 누르기
