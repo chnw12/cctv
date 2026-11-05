@@ -196,10 +196,43 @@ class HazardBoxPainter extends CustomPainter {
     tp.paint(canvas, Offset(bg.left + 4, bg.top + 1));
   }
 
+  /// 이름표 자리: 박스 아래 → 위 → 박스 안쪽 위 → 아래로 한 칸씩, 이미 놓인 이름표와 겹치지 않는 첫 자리.
+  /// 앞에 있는 것(심각한 위험 — 목록이 심각도순)이 좋은 자리를 먼저 차지. 화면 밖으로는 안 나가게 밀어 넣음.
+  /// 자리가 없으면 첫 후보(겹쳐도 박스 아래)
+  static List<Rect> placeLabels(List<Rect> boxes, List<Size> labels, Size view,
+      {double gap = 2}) {
+    final placed = <Rect>[];
+    for (var i = 0; i < boxes.length; i++) {
+      final r = boxes[i], s = labels[i];
+      final left = r.left
+          .clamp(gap, math.max(gap, view.width - s.width - gap))
+          .toDouble();
+      Rect at(double top) => Rect.fromLTWH(left, top, s.width, s.height);
+      final below = at(r.bottom + gap), above = at(r.top - s.height - gap);
+      final candidates = [
+        below,
+        above,
+        at(r.top + gap), // 박스 안쪽 위
+        for (var k = 1; k <= 4; k++) at(r.bottom + gap + k * (s.height + gap)),
+        for (var k = 1; k <= 4; k++)
+          at(r.top - s.height - gap - k * (s.height + gap)),
+      ];
+      bool fits(Rect c) =>
+          c.top >= 0 &&
+          c.bottom <= view.height &&
+          placed.every((p) => !p.overlaps(c));
+      placed.add(candidates.firstWhere(fits,
+          orElse: () => below.bottom <= view.height ? below : above));
+    }
+    return placed;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final rects = viewRects(report, size,
         shift: shift, anchored: anchored, includeIgnored: showIgnored);
+    // 박스를 다 그린 뒤 이름표를 맨 위에(나중 박스 테두리가 앞 이름표를 덮지 않게, 실제 폰 사진에서 발견)
+    final labels = <(TextPainter, Color, Rect)>[];
     for (final MapEntry(key: i, value: r) in rects.entries) {
       final h = report.hazards[i];
       final open = h.status == HazardStatus.open;
@@ -243,12 +276,14 @@ class HazardBoxPainter extends CustomPainter {
                 fontWeight: FontWeight.bold)),
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: math.max(r.width, 120));
-      final top = r.bottom + tp.height + 4 < size.height
-          ? r.bottom + 2
-          : r.top - tp.height - 4;
-      final bg = Rect.fromLTWH(r.left, top, tp.width + 8, tp.height + 2);
-      canvas.drawRect(bg, Paint()..color = color);
-      tp.paint(canvas, Offset(bg.left + 4, bg.top + 1));
+      labels.add((tp, color, r));
+    }
+    final spots = placeLabels([for (final l in labels) l.$3],
+        [for (final l in labels) Size(l.$1.width + 8, l.$1.height + 2)], size);
+    for (var k = 0; k < labels.length; k++) {
+      final (tp, color, _) = labels[k];
+      canvas.drawRect(spots[k], Paint()..color = color);
+      tp.paint(canvas, Offset(spots[k].left + 4, spots[k].top + 1));
     }
   }
 

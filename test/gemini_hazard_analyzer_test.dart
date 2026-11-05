@@ -82,6 +82,16 @@ void main() {
             .having((e) => e.message, 'message', contains('429'))));
   });
 
+  test('지시문에 심각도 기준표: 등급별 기준과 "물기 + 전기 = high" 규칙', () {
+    final p = GeminiHazardAnalyzer.promptFor(null);
+    expect(p, contains('severity는 아래 기준으로만'));
+    for (final s in ['- high:', '- medium:', '- low:']) {
+      expect(p, contains(s));
+    }
+    expect(p, contains('바닥에 널린 부품')); // 개발 동기(바닥 적치물)
+    expect(p, contains('함께 보이면 반드시 high'));
+  });
+
   test('점검 장소를 프롬프트 맨 앞에 넣음(없으면 그대로)', () async {
     expect(GeminiHazardAnalyzer.promptFor(null), isNot(contains('점검 장소')));
     expect(GeminiHazardAnalyzer.promptFor('  '), isNot(contains('점검 장소')));
