@@ -174,6 +174,22 @@ void main() {
     test('한도 초과', () async {
       expect(await errorOf(http.Response('{}', 429)), contains('한도'));
     });
+    test('하루 한도 초과(무료 키)는 "잠시 후"가 아니라 오후 5시·사진만 저장 안내', () async {
+      // 2026-11-09 실제로 받은 429의 한도 이름(값은 20)
+      const body = '{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","details":[{'
+          '"violations":[{"quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier",'
+          '"quotaValue":"20"}]}]}}';
+      final e = await errorOf(http.Response(body, 429));
+      expect(e, allOf(contains('오늘 AI 사용 한도'), contains('오후 5시'),
+          contains('[사진만 저장]')));
+      expect(e, isNot(contains('1분쯤 뒤')));
+      // 분당 한도면 1분 뒤 다시
+      final m = await errorOf(http.Response(
+          '{"error":{"details":[{"violations":[{"quotaId":'
+          '"GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]}]}}',
+          429));
+      expect(m, contains('1분쯤 뒤'));
+    });
     test('안전 필터로 막힌 응답', () async {
       expect(
           await errorOf(http.Response(
