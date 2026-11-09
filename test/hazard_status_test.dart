@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:facility_camera/analysis/hazard.dart';
 import 'package:facility_camera/data/models.dart';
+import 'package:facility_camera/data/report_csv.dart';
+import 'package:facility_camera/data/report_text.dart';
 import 'package:facility_camera/ui/box_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -58,6 +60,32 @@ void main() {
     expect(_f(_r([])).done, isFalse);
     expect(_f(_r([]), resolved: true).done, isTrue);
     expect(_f(_r([_h('x', null)]), resolved: true).openHazards, isEmpty);
+  });
+
+  test('모두 무시(오탐)한 기록은 "조치 완료"가 아니라 "오탐 처리" — 요약·CSV도', () {
+    final a = _h('누수', null, s: Severity.high), b = _h('전선', null);
+    final f = _f(_r([a, b]));
+    final i = Inspection(id: 'i', location: 'B2', startedAt: DateTime(2026))
+      ..findings.add(f);
+    a.setStatus(HazardStatus.ignored, by: 'tap');
+    b.setStatus(HazardStatus.ignored, by: 'list');
+    expect(f.done, isTrue); // 남은 일은 없음(미조치에서 빠짐)
+    expect(f.allIgnored, isTrue);
+    expect(f.finished, isFalse); // 하지만 조치한 것은 없음
+    expect(i.openCount, 0);
+    final text = inspectionReportText(i);
+    expect(text, contains('[오탐 처리]'));
+    expect(text, isNot(contains('[조치 완료]')));
+    expect(inspectionCsv(i).split('\r\n')[1], contains(',오탐,'));
+
+    // 하나라도 완료하면 조치 완료
+    b.setStatus(HazardStatus.resolved, by: 'tap');
+    expect([f.allIgnored, f.finished], [false, true]);
+    expect(inspectionReportText(i), contains('[조치 완료]'));
+    // 기록 전체를 "조치 완료"로 표시해도 조치 완료
+    b.setStatus(HazardStatus.ignored, by: 'tap');
+    f.resolved = true;
+    expect([f.allIgnored, f.finished], [false, true]);
   });
 
   test('탭 판정: 처리 안 된 위험만, 손가락 여유, 겹치면 작은(안쪽) 박스', () {

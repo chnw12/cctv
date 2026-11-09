@@ -141,6 +141,10 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: HazardList(f.report,
+                      // 사진만 남긴 기록은 아직 AI가 안 봤으므로 "위험 없음"이라고 하지 않음
+                      emptyText: f.needsAi
+                          ? 'AI 분석 전 사진 · 위 버튼으로 분석'
+                          : HazardList.noHazardText,
                       below: (idx, h) => _HazardStatusRow(
                             hazard: h,
                             afterPhoto: repo.afterPhotoFile(i, h),
@@ -151,8 +155,12 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               ),
               SwitchListTile(
                 title: const Text('조치 완료'),
-                subtitle: Text(f.done ? '조치가 끝난 항목입니다' : '아직 조치가 필요합니다'),
-                value: f.done,
+                subtitle: Text(f.allIgnored
+                    ? 'AI가 짚은 위험을 모두 오탐으로 처리함'
+                    : f.done
+                        ? '조치가 끝난 항목입니다'
+                        : '아직 조치가 필요합니다'),
+                value: f.finished,
                 onChanged: (v) => repo.updateFinding(i, f, resolved: v),
               ),
               const SizedBox(height: 8),
@@ -213,7 +221,14 @@ class _HazardStatusRow extends StatelessWidget {
               label: const Text('완료'),
             ),
             TextButton.icon(
-              onPressed: () => onSet(HazardStatus.ignored),
+              // 카메라 화면과 같게: 위험 등급은 오탐인지 한 번 더 확인
+              onPressed: () async {
+                if (h.severity == Severity.high &&
+                    !await confirmIgnoreHigh(context, h)) {
+                  return;
+                }
+                onSet(HazardStatus.ignored);
+              },
               icon: const Icon(Icons.visibility_off),
               label: const Text('무시'),
             ),

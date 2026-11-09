@@ -6,6 +6,14 @@ enum FindingSource {
   ai, // AI 점검 버튼
   auto, // 자동 점검(새 물체 등장)
   manual, // 사진만 찍고 직접 기록(오프라인·AI 미사용)
+  ;
+
+  /// 화면·CSV·공유 요약에 같이 쓰는 이름. 자동 점검으로 저장된 위험은 기사가 처리하기 전까지 "미확인 AI 제안"
+  String get label => switch (this) {
+        ai => 'AI 점검',
+        auto => '자동 점검',
+        manual => '직접 기록',
+      };
 }
 
 /// 점검 중 기록한 한 장면: 사진 + AI 결과 + 조치 상태
@@ -36,12 +44,22 @@ class Finding {
 
   Severity? get worst => report.worst;
 
-  /// 조치가 끝났나: 기록 전체를 "조치 완료"로 표시했거나, 위험이 있고 모두 완료·무시됨.
-  /// (위험 없는 수동 기록은 표시한 대로)
+  /// 남은 일이 없나: 기록 전체를 "조치 완료"로 표시했거나, 위험이 있고 모두 완료·무시됨.
+  /// (위험 없는 수동 기록은 표시한 대로). 모두 무시한 경우는 조치한 게 없으므로
+  /// 화면·공유에서는 "조치 완료"가 아니라 [allIgnored]("오탐 처리")로 보여 줌
   bool get done =>
       resolved ||
       (report.hazards.isNotEmpty &&
           report.hazards.every((h) => h.status != HazardStatus.open));
+
+  /// AI가 짚은 위험을 기사가 모두 오탐(무시)으로 처리함 → "조치 완료"가 아님
+  bool get allIgnored =>
+      !resolved &&
+      report.hazards.isNotEmpty &&
+      report.hazards.every((h) => h.status == HazardStatus.ignored);
+
+  /// 화면·공유에서 "조치 완료"로 보여 줄지(모두 오탐 처리한 기록은 아님)
+  bool get finished => done && !allIgnored;
 
   /// 아직 처리 안 된 위험(기록 전체를 조치 완료로 표시했으면 없음)
   List<Hazard> get openHazards => resolved

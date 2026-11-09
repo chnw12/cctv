@@ -36,6 +36,8 @@ class CameraTipsCard extends StatelessWidget {
   final VoidCallback onClose;
 
   static const _tips = [
+    // 점검은 사람이 메인: 화면을 보느라 주변을 놓치지 않게 맨 먼저
+    (Icons.front_hand, '멈춰 서서', '안전한 곳에 서서 비추기(걸으면서 화면 보지 않기)'),
     (Icons.volume_down, '볼륨 키', 'AI 점검(장갑 낀 채로도)'),
     (Icons.touch_app, '화면 탭', '그 위치에 초점·밝기'),
     (Icons.pinch, '두 손가락', '확대(또는 위쪽 1x 버튼)'),

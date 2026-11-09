@@ -28,6 +28,7 @@ String inspectionCsv(Inspection i) {
     [
       '장소',
       '시각',
+      '기록 방식',
       '심각도',
       '위험',
       '근거',
@@ -41,8 +42,19 @@ String inspectionCsv(Inspection i) {
     ],
   ];
   for (final f in i.findings) {
-    final common = [i.location, fmtFull(f.createdAt)];
-    final tail = [f.done ? 'O' : '', f.memo, f.photo, f.report.summary];
+    // 기록 방식: AI 점검(버튼) / 자동 점검(기사가 처리 전이면 미확인 AI 제안) / 직접 기록
+    final common = [i.location, fmtFull(f.createdAt), f.source.label];
+    // 조치완료: 조치함 O, AI가 짚은 위험을 모두 오탐으로 처리함 "오탐"(조치한 것 없음)
+    final tail = [
+      f.allIgnored
+          ? '오탐'
+          : f.finished
+              ? 'O'
+              : '',
+      f.memo,
+      f.photo,
+      f.report.summary
+    ];
     if (f.report.hazards.isEmpty) {
       rows.add([...common, '', '', '', '', '', '', ...tail]);
     }

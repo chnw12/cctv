@@ -165,7 +165,8 @@ class _InspectionScreenState extends State<InspectionScreen> with RouteAware {
       if (_guard.shouldSave(r)) {
         _save(s, FindingSource.auto);
       } else {
-        _toast('같은 위험을 방금 저장해서 건너뜀');
+        // 종류 이름만 비교하므로 다른 설비의 같은 종류 위험일 수도 있음 → 직접 저장할 길을 알려 줌
+        _toast('같은 종류 위험을 1분 안에 저장해서 자동 저장 건너뜀 · 다른 위험이면 [기록 저장]');
       }
     }
   }
@@ -206,7 +207,7 @@ class _InspectionScreenState extends State<InspectionScreen> with RouteAware {
     final h = r.hazards[index];
     if (action == HazardStatus.ignored &&
         h.severity == Severity.high &&
-        !await _confirmIgnoreHigh(h)) {
+        !await confirmIgnoreHigh(context, h)) {
       return;
     }
     final f = await _save(s, s.auto ? FindingSource.auto : FindingSource.ai,
@@ -257,25 +258,6 @@ class _InspectionScreenState extends State<InspectionScreen> with RouteAware {
         ),
       ));
   }
-
-  /// 위험(high) 등급은 실수로 지우지 않게 한 번 더
-  Future<bool> _confirmIgnoreHigh(Hazard h) async =>
-      await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('"${h.type}"을(를) 무시할까요?'),
-          content: const Text('위험 등급입니다. 실제 위험이 아니거나 이미 알고 있는 경우에만 무시하세요.'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('취소')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('무시')),
-          ],
-        ),
-      ) ==
-      true;
 
   /// AI 분석에 실패한 사진을 "미분석 기록"으로 저장(점검 상세에서 한꺼번에 분석)
   Future<void> _saveFailedShot(AiState s) async {

@@ -37,6 +37,27 @@ class SeverityBadge extends StatelessWidget {
       );
 }
 
+/// 위험(high) 등급을 무시하기 전에 한 번 더(카메라 화면·기록 화면 공용).
+/// 무시 = "AI가 잘못 짚음(오탐)"만. 알고 있는 실제 위험은 미조치로 남겨야 함
+Future<bool> confirmIgnoreHigh(BuildContext context, Hazard h) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('"${h.type}"을(를) 무시할까요?'),
+        content: const Text('AI가 잘못 짚은 경우(오탐)에만 무시하세요.\n'
+            '실제 위험이면 이미 알고 있더라도 그대로 두세요. 미조치로 남습니다.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('무시')),
+        ],
+      ),
+    ) ==
+    true;
+
 /// 위험 처리 상태 표시(완료·무시)
 class StatusChip extends StatelessWidget {
   const StatusChip(this.status, {super.key});
@@ -63,9 +84,14 @@ class StatusChip extends StatelessWidget {
 /// 위험요소 목록(심각도 높은 순). 결과 패널·발견사항 상세에서 같이 씀.
 /// 완료·무시한 위험은 상태 표시와 함께 흐리게. [below]로 위험마다 아래에 버튼 등을 붙임(기록 화면)
 class HazardList extends StatelessWidget {
-  const HazardList(this.report, {super.key, this.below});
+  const HazardList(this.report,
+      {super.key, this.below, this.emptyText = noHazardText});
   final HazardReport report;
   final Widget Function(int index, Hazard h)? below;
+
+  /// 위험이 없을 때 문구. 기본은 "AI가 못 찾음"이지 "안전"이 아님을 드러냄(초록 대신 회색)
+  final String emptyText;
+  static const noHazardText = 'AI가 이 사진에서 찾은 위험 없음 · 직접 확인은 계속';
 
   @override
   Widget build(BuildContext context) => Column(
@@ -77,8 +103,7 @@ class HazardList extends StatelessWidget {
                   color: Colors.white, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           if (report.hazards.isEmpty)
-            const Text('발견된 위험요소 없음',
-                style: TextStyle(color: Colors.greenAccent)),
+            Text(emptyText, style: const TextStyle(color: Colors.white70)),
           for (final (i, h) in report.hazards.indexed)
             Padding(
               padding: const EdgeInsets.only(top: 6),

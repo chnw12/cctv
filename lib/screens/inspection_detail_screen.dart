@@ -215,12 +215,6 @@ class _FindingTile extends StatelessWidget {
   final Inspection i;
   final Finding f;
 
-  static String sourceLabel(FindingSource s) => switch (s) {
-        FindingSource.ai => 'AI 점검',
-        FindingSource.auto => '자동 점검',
-        FindingSource.manual => '직접 기록',
-      };
-
   @override
   Widget build(BuildContext context) {
     final repo = AppScope.of(context).repo;
@@ -257,7 +251,7 @@ class _FindingTile extends StatelessWidget {
                     Row(children: [
                       if (worst != null) SeverityBadge(worst),
                       if (worst != null) const SizedBox(width: 6),
-                      Text('${fmtTime(f.createdAt)} · ${sourceLabel(f.source)}',
+                      Text('${fmtTime(f.createdAt)} · ${f.source.label}',
                           style: Theme.of(context).textTheme.bodySmall),
                     ]),
                     const SizedBox(height: 4),
@@ -278,11 +272,20 @@ class _FindingTile extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip: f.done ? '조치 완료 취소' : '조치 완료',
-                onPressed: () => repo.updateFinding(i, f, resolved: !f.done),
+                tooltip: f.finished
+                    ? '조치 완료 취소'
+                    : f.allIgnored
+                        ? '모두 오탐 처리됨 · 누르면 조치 완료'
+                        : '조치 완료',
+                onPressed: () =>
+                    repo.updateFinding(i, f, resolved: !f.finished),
                 icon: Icon(
-                    f.done ? Icons.check_circle : Icons.radio_button_unchecked,
-                    color: f.done ? Colors.greenAccent : null),
+                    f.finished
+                        ? Icons.check_circle
+                        : f.allIgnored
+                            ? Icons.block
+                            : Icons.radio_button_unchecked,
+                    color: f.finished ? Colors.greenAccent : null),
               ),
             ],
           ),

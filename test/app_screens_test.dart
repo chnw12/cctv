@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:facility_camera/analysis/hazard.dart';
@@ -140,6 +141,56 @@ void main() {
     expect(h.status, HazardStatus.open);
     expect(i.openCount, 1);
     expect(find.widgetWithText(TextButton, '무시'), findsOneWidget);
+  });
+
+  testWidgets('발견사항 상세: 위험 등급 무시는 오탐 확인 창(카메라 화면과 같게), 모두 무시하면 "오탐 처리"',
+      (t) async {
+    late Inspection i;
+    late Finding f;
+    await t.runAsync(() async {
+      i = await repo.create('3층 전기실');
+      f = await repo.addFinding(i, jpeg, _report('high'), FindingSource.ai);
+    });
+    await t.pumpWidget(
+        app(home: FindingDetailScreen(inspectionId: i.id, findingId: f.id)));
+    final page = find.byType(Scrollable).first;
+    final ignore = find.widgetWithText(TextButton, '무시');
+    await t.scrollUntilVisible(ignore, 200, scrollable: page);
+    final h = f.report.hazards.single;
+
+    // 취소하면 그대로 미조치
+    await t.tap(ignore);
+    await t.pumpAndSettle();
+    expect(find.textContaining('AI가 잘못 짚은 경우(오탐)에만'), findsOneWidget);
+    await t.tap(find.text('취소'));
+    await t.pumpAndSettle();
+    expect(h.status, HazardStatus.open);
+    expect(i.openCount, 1);
+
+    // 확인하면 무시 → 남은 일은 없지만 "조치 완료"가 아니라 오탐 처리
+    // 버튼 처리(확인 창 → 파일 저장)가 실제 시간에서 돌게 runAsync 안에서 누르고,
+    // 저장소가 알릴 때까지 기다림(가짜 시간에서 시작하면 파일 쓰기가 끝나지 않음)
+    late Completer<void> saved;
+    void onSaved() => saved.isCompleted ? null : saved.complete();
+    repo.addListener(onSaved);
+    await t.runAsync(() async {
+      saved = Completer<void>(); // 실제 시간 쪽에서 만들어야 완료 알림이 돎
+      await t.tap(ignore);
+      await t.pumpAndSettle();
+      await t.tap(find.widgetWithText(FilledButton, '무시'));
+      await t.pump();
+      await saved.future.timeout(const Duration(seconds: 5));
+    });
+    repo.removeListener(onSaved);
+    await t.pumpAndSettle();
+    expect(h.status, HazardStatus.ignored);
+    expect(h.statusBy, 'list');
+    expect(i.openCount, 0);
+    expect([f.allIgnored, f.finished], [true, false]);
+    await t.scrollUntilVisible(find.byType(SwitchListTile), 200,
+        scrollable: page);
+    expect(find.text('AI가 짚은 위험을 모두 오탐으로 처리함'), findsOneWidget);
+    expect(t.widget<SwitchListTile>(find.byType(SwitchListTile)).value, isFalse);
   });
 
   testWidgets('점검 상세: 위험순으로 바꾸면 심각한 발견이 위로', (t) async {

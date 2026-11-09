@@ -154,6 +154,7 @@ void main() {
     expect(t, contains('미조치 위험요소: 위험 1, 주의 1'));
     expect(t, contains('[위험] 분전반 열림'));
     expect(t, contains('메모: 담당 김기사'));
+    expect(t, contains(' · AI 점검 ')); // 기록 방식(AI 점검/자동 점검/직접 기록)
   });
 
   test('설정 저장·불러오기, 깨진 설정 파일이면 기본값', () async {

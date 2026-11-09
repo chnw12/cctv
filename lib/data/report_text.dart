@@ -26,7 +26,8 @@ String inspectionReportText(Inspection i) {
   for (final f in i.findings) {
     b
       ..writeln()
-      ..writeln('${n++}. ${fmtTime(f.createdAt)} ${f.done ? '[조치 완료] ' : ''}'
+      ..writeln('${n++}. ${fmtTime(f.createdAt)} · ${f.source.label} '
+          '${f.allIgnored ? '[오탐 처리] ' : f.finished ? '[조치 완료] ' : ''}'
           '${f.report.summary}');
     for (final h in f.report.hazards) {
       final st = switch (h.status) {
