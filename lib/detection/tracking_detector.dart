@@ -12,6 +12,9 @@ import 'kalman.dart';
 ///    길거나(저사양·에뮬레이터 1FPS) 카메라가 움직여도 예측 위치로 비교합니다.
 /// 2. 연결: 예측 박스와 탐지 박스의 IoU로 헝가리안 최적 할당. 확정 트랙을 먼저,
 ///    미확정 트랙은 남은 탐지로(DeepSORT의 matching cascade 단순화).
+///    확정 트랙 중 못 짝지은 것은 두 번 더: OC-SORT의 OCR(마지막으로 본 자리와 비교) → C-BIoU(박스를 넓혀 비교).
+///    흐린 화면에서 박스가 튀어 겹침이 없어진 같은 물체를 새 번호 없이 이음(2026-11-09, 실기기 기록 재생에서
+///    움직일 때 새 번호 31.0→23.9/분, 가상 장면 12종 평균 84.4→84.7%·번호 바뀜 1→0, 나빠진 장면 없음)
 /// 3. 수명: minHits번 연속 잡혀야 ID 부여(미확정 중 한 번이라도 놓치면 폐기),
 ///    확정 트랙은 maxMissFrames 프레임 이상 **그리고** maxMissMs 이상 안 보여야 폐기.
 ///    → 시간만 보던 이전 방식은 처리 1FPS에서 매 프레임 잡혀도 만료돼 ID가 계속 새로 생겼음.
@@ -43,6 +46,8 @@ class TrackingDetector implements Detector {
     this.tentativeMisses = 1,
     this.maxMissFrames = 3,
     this.maxMissMs = 8000,
+    this.bufferScale = 0.3,
+    this.ocr = true,
     this.motion,
   });
 
@@ -74,6 +79,15 @@ class TrackingDetector implements Detector {
   /// 빠를 땐 시간이, 느릴 땐 프레임 수가 가림(겹침) 동안 트랙을 지켜 줍니다.
   final int maxMissFrames;
   final int maxMissMs;
+
+  /// C-BIoU(WACV 2023): 1단계·OCR에서 못 짝지은 확정 트랙과 남은 탐지를, 두 박스를 크기의 [bufferScale]배씩
+  /// 사방으로 넓혀 한 번 더 짝지음. 흐린 화면에서 박스가 튀거나 예측이 빗나가 겹침이 없어도 같은 물체로 이음. 0이면 끔.
+  /// 0.3(논문의 작은 버퍼 수준)이 실기기 기록에서 0.5보다 나음(23.9 vs 26.5/분)
+  final double bufferScale;
+
+  /// OC-SORT의 OCR(CVPR 2023): 1단계에서 남은 확정 트랙을 마지막으로 본 자리(카메라 움직임만큼 옮긴)와 한 번 더 비교.
+  /// C-BIoU보다 먼저(반대 순서면 실기기 효과가 줄어 27.2/분)
+  final bool ocr;
 
   /// 같은 물체의 일부로 보는 기준: 작은 박스 넓이의 [dupContained] 이상이 큰 박스 안이고,
   /// 큰 박스 넓이의 [dupMinArea]~[dupMaxArea] 배. 아주 작은 건 큰 설비 위의 다른 물체(계기판 등)일 수 있고,
@@ -245,13 +259,15 @@ class TrackingDetector implements Detector {
 
     // 2) 연결
     final detToTrack = List<_Track?>.filled(dets.length, null);
-    void associate(List<_Track> tracks, {required bool alsoLastBox}) {
+    void associate(List<_Track> tracks,
+        {bool alsoLastBox = false, double Function(_Track t, Rect b)? score}) {
       final free = [
         for (var d = 0; d < dets.length; d++)
           if (detToTrack[d] == null) d
       ];
       if (tracks.isEmpty || free.isEmpty) return;
       double overlap(_Track t, Rect b) {
+        if (score != null) return score(t, b);
         final p = iou(t.kf.box, b);
         if (!alsoLastBox) return p;
         final l = iou(t.lastBox, b);
@@ -272,11 +288,20 @@ class TrackingDetector implements Detector {
     // 확정 트랙도 마지막으로 본 자리와 비교: 몇 초 빠졌다 같은 자리에 다시 나온 물체를 원래 ID로.
     // 잃어버린 트랙은 그 자리를 믿을 수 있을 때만(자이로로 옮겼거나 화면이 거의 멈춤)
     final revive = motion != null || _globalVel.distance <= reviveMaxSceneSpeed;
-    associate(
-        _tracks
-            .where((t) => t.id != null && (revive || t.misses <= maxMissFrames))
-            .toList(),
-        alsoLastBox: false);
+    final confirmed = _tracks
+        .where((t) => t.id != null && (revive || t.misses <= maxMissFrames))
+        .toList();
+    associate(confirmed);
+    List<_Track> left() => [
+          for (final t in confirmed)
+            if (!detToTrack.contains(t)) t
+        ];
+    if (ocr) associate(left(), score: (t, b) => iou(t.lastBox, b));
+    if (bufferScale > 0) {
+      associate(left(),
+          score: (t, b) =>
+              iou(buffered(t.kf.box, bufferScale), buffered(b, bufferScale)));
+    }
     associate(_tracks.where((t) => t.id == null).toList(), alsoLastBox: true);
 
     // 3) 갱신
@@ -383,6 +408,10 @@ class TrackingDetector implements Detector {
     return Offset(
         median([for (final v in vs) v.dx]), median([for (final v in vs) v.dy]));
   }
+
+  /// 박스를 크기의 b배씩 사방으로 넓힘(C-BIoU의 buffered box)
+  static Rect buffered(Rect r, double b) => Rect.fromLTRB(r.left - b * r.width,
+      r.top - b * r.height, r.right + b * r.width, r.bottom + b * r.height);
 
   static double iou(Rect a, Rect b) {
     final i = a.intersect(b);
