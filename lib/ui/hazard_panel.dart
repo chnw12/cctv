@@ -85,9 +85,15 @@ class StatusChip extends StatelessWidget {
 /// 완료·무시한 위험은 상태 표시와 함께 흐리게. [below]로 위험마다 아래에 버튼 등을 붙임(기록 화면)
 class HazardList extends StatelessWidget {
   const HazardList(this.report,
-      {super.key, this.below, this.emptyText = noHazardText});
+      {super.key,
+      this.below,
+      this.emptyText = noHazardText,
+      this.showRule = false});
   final HazardReport report;
   final Widget Function(int index, Hazard h)? below;
+
+  /// 위험마다 종류와 관련 기준(참고)을 한 줄 더 보여 줌(기록 화면). 카메라 결과 패널은 좁아서 끔
+  final bool showRule;
 
   /// 위험이 없을 때 문구. 기본은 "AI가 못 찾음"이지 "안전"이 아님을 드러냄(초록 대신 회색)
   final String emptyText;
@@ -144,6 +150,13 @@ class HazardList extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (showRule && h.ruleLine != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 44, top: 2),
+                      child: Text(h.ruleLine!,
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 11)),
+                    ),
                   if (below != null) below!(i, h),
                 ],
               ),

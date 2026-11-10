@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../core/jpeg.dart';
 import 'hazard.dart';
 import 'hazard_analyzer.dart';
+import 'hazard_rules.dart';
 
 /// Gemini REST API 직접 호출. 키·모델은 --dart-define(-from-file)로 주입.
 /// ※ 앱에 키를 넣으면 APK에서 추출 가능 → 시연용. 실서비스는 서버 경유.
@@ -40,17 +41,23 @@ class GeminiHazardAnalyzer implements HazardAnalyzer {
   /// 위치 찾기 같은 단순 공간 작업은 낮을수록 빠르고 결과도 좋다는 게 Google 안내
   final String _thinking;
 
-  static const _prompt = '''
+  /// 등급(위험·주의·관찰)은 AI가 정하지 않음: AI는 위험을 찾아 **종류(category)만** 고르고,
+  /// 등급은 앱의 규칙표([HazardRules])가 정함 → 같은 종류는 언제나 같은 등급(2026-11-10, LLM 의존도 완화)
+  static final _prompt = '''
 너는 건물 기계실·전기실을 점검하는 시설기사의 안전 보조원이다.
 사진에서 사람이 다치거나 설비 사고로 이어질 수 있는 위험요소만 찾아라.
-예: 누수·누유, 배관 부식, 노출된 전선·열린 분전반, 바닥 장애물·미끄럼,
-회전체 보호커버 없음, 소화기·통로 막힘, 보호구 미착용, 연기·그을음, 계기 이상치.
 각 위험요소의 사진 속 위치를 box_2d [ymin, xmin, ymax, xmax] (0~1000 정규화)로 표시하라.
-severity는 아래 기준으로만 정하라(같은 장면이면 항상 같은 등급이 되게):
-- high: 지금 바로 사람이 다칠 수 있음. 충전부 노출·열린 분전반, 전기설비 근처의 물기·누수, 연기·그을음, 회전체 보호커버 없음, 가스 누설 징후.
-- medium: 방치하면 사고로 이어짐. 배관 부식·소량 누수·누유, 통로·소화기·분전반 앞 적치물, 바닥에 널린 부품·장애물·미끄럼, 계기값 이상, 보호구 미착용.
-- low: 지금은 위험하지 않지만 기록하고 다음 점검 때 볼 것. 경미한 녹·얼룩·균열, 표지 훼손, 정리가 필요한 배선·물건.
-물기·누수와 전기설비(분전반·전선)가 함께 보이면 반드시 high.
+각 위험요소의 category는 아래 목록에서 가장 맞는 것 하나를 골라라. 위험 등급은 앱의 규칙표가 정하므로 네가 정하지 않는다. 같은 장면이면 항상 같은 category가 되게 골라라.
+${HazardRules.promptList}
+고르는 규칙:
+- 물은 이 순서로 본다: 바닥의 대부분이 잠겼거나 물이 계속 쏟아지면 flooding. 그렇지 않고 물기·누수가 전기설비(분전반·전동기·전선·콘센트)에 닿거나 바로 옆·아래에 있으면 leak이 아니라 water_near_electrical. 둘 다 아니면 leak.
+- 분전반 문이 열려 있으면: 안쪽 단자·모선·접속부가 보이면 live_part_exposed, 보호판에 가려 안 보이면 panel_door_open.
+- 쌓인 물건은 무엇을 막는지로 고른다: 분전반 앞이면 panel_obstructed, 소화기·소화전 앞이면 extinguisher_blocked, 통로·출입구·방화문이면 evacuation_blocked, 타기 쉬운 물건을 쌓아 둔 것이면 combustibles_stored, 그 밖의 바닥 물건은 floor_obstacle.
+- 녹은 표면 변색·얇은 녹이면 minor_rust, 표면이 들뜨거나 구멍·누설 흔적이 있으면 corrosion.
+- 두 종류 사이에서 애매하면 더 조심해야 하는 쪽을 고른다(leak보다 water_near_electrical, minor_rust보다 corrosion, wiring_untidy보다 wire_damaged).
+- 같은 것을 종류만 바꿔 두 번 넣지 마라. 한 위험은 한 번만.
+- 목록에 맞는 것이 없을 때만 other.
+type에는 그 위험을 짧은 말로 적고(예: 바닥 물고임), description에는 사진 속 근거, action에는 기사가 할 조치를 적어라.
 확실하지 않으면 추측하지 말고 넣지 마라. 위험이 없으면 hazards는 빈 배열.
 모든 문장은 한국어로 짧게.''';
 
@@ -95,7 +102,7 @@ severity는 아래 기준으로만 정하라(같은 장면이면 항상 같은 �
         }
       : _schema;
 
-  static const Map<String, Object> _schema = {
+  static final Map<String, Object> _schema = {
     'type': 'OBJECT',
     'properties': {
       'summary': {'type': 'STRING', 'description': '장면 한 줄 요약'},
@@ -104,12 +111,13 @@ severity는 아래 기준으로만 정하라(같은 장면이면 항상 같은 �
         'items': {
           'type': 'OBJECT',
           'properties': {
-            'type': {'type': 'STRING', 'description': '위험 종류(짧게)'},
-            'description': {'type': 'STRING', 'description': '사진 속 근거'},
-            'severity': {
+            'category': {
               'type': 'STRING',
-              'enum': ['high', 'medium', 'low'],
+              'description': '위험 종류(목록에서 하나)',
+              'enum': HazardRules.keys,
             },
+            'type': {'type': 'STRING', 'description': '위험을 짧은 말로'},
+            'description': {'type': 'STRING', 'description': '사진 속 근거'},
             'action': {'type': 'STRING', 'description': '기사가 할 조치'},
             'box_2d': {
               'type': 'ARRAY',
@@ -117,7 +125,7 @@ severity는 아래 기준으로만 정하라(같은 장면이면 항상 같은 �
               'items': {'type': 'INTEGER'},
             },
           },
-          'required': ['type', 'description', 'severity', 'action'],
+          'required': ['category', 'type', 'description', 'action'],
         },
       },
     },
@@ -183,7 +191,7 @@ severity는 아래 기준으로만 정하라(같은 장면이면 항상 같은 �
           ? 'Gemini가 응답을 막았습니다($blocked). 다른 장면으로 다시 시도하세요.'
           : 'Gemini 응답 형식 이상: ${res.body}');
     }
-    return HazardReport.fromJson(jsonDecode(text) as Map<String, dynamic>,
+    return HazardReport.fromAi(jsonDecode(text) as Map<String, dynamic>,
         sw.elapsedMilliseconds, await encodedImageSize(jpeg));
   }
 

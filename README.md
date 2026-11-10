@@ -36,6 +36,7 @@
 - 모델: 기본 **Claude Sonnet 5.5**(`claude-sonnet-5-5`, 생각 깊이 `low`. `--dart-define=CLAUDE_MODEL=…`·`CLAUDE_EFFORT=…`로 바꿈). 11/10에 공개 기계실 사진 16장 × 3번으로 비교해 고름(`APP_OVERVIEW.md` 3-6). 쓴 만큼 요금이 나가므로 Claude 콘솔에서 지출 한도를 걸 것
 - 예비: Gemini — `secrets.json`의 `GEMINI_MODEL` (기본 `gemini-3-flash-preview`), 생각 정도 `GEMINI_THINKING` (기본 `low`). 무료 키는 하루 20번 한도
   - 2.5 Flash는 새 키로는 404("새 사용자 제공 안 함"). 비교 결과는 PROGRESS.md
+- **등급은 AI가 정하지 않음**: AI는 위험 종류(정해진 25개)만 고르고, 등급(위험·주의·관찰)은 앱의 규칙표(`lib/analysis/hazard_rules.dart`)가 정함. 종류마다 한국 법령·점검표의 관련 기준을 붙였고 기록·CSV에 같이 남음(`APP_OVERVIEW.md` 2-3)
 - 손이 흔들리는 중이면 자이로가 조용해질 때까지(최대 0.7초) 기다렸다 찍어 흐린 사진을 줄입니다.
 - 카메라 스트림을 멈추지 않고 촬영 → 긴 변 1024px로 줄여 전송 → 위험요소(심각도·근거·조치)와 위치(box_2d)
 - 찍은 뒤 폰을 움직여도 위험 표시가 실제 위치에 붙어 있게: 위험이 추적 중인 물체 안에 있으면 그 물체를 따라가고,

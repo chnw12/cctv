@@ -141,6 +141,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: HazardList(f.report,
+                      showRule: true,
                       // 사진만 남긴 기록은 아직 AI가 안 봤으므로 "위험 없음"이라고 하지 않음
                       emptyText: f.needsAi
                           ? 'AI 분석 전 사진 · 위 버튼으로 분석'

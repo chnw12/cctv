@@ -6,6 +6,7 @@ import '../core/jpeg.dart';
 import 'gemini_hazard_analyzer.dart' show GeminiHazardAnalyzer;
 import 'hazard.dart';
 import 'hazard_analyzer.dart';
+import 'hazard_rules.dart';
 
 /// Claude Messages API 직접 호출(다트용 공식 SDK가 없어 HTTP로). 키·모델은 --dart-define(-from-file)로 주입.
 /// Gemini와 **같은 지시문·같은 답 형식**이라 두 AI를 같은 사진으로 비교할 수 있음(test/scene_eval_test.dart).
@@ -79,16 +80,17 @@ class ClaudeHazardAnalyzer implements HazardAnalyzer {
           'items': {
             'type': 'object',
             'properties': {
-              'type': {'type': 'string', 'description': '위험 종류(짧게)'},
-              'description': {'type': 'string', 'description': '사진 속 근거'},
-              'severity': {
+              'category': {
                 'type': 'string',
-                'enum': ['high', 'medium', 'low'],
+                'description': '위험 종류(목록에서 하나)',
+                'enum': HazardRules.keys,
               },
+              'type': {'type': 'string', 'description': '위험을 짧은 말로'},
+              'description': {'type': 'string', 'description': '사진 속 근거'},
               'action': {'type': 'string', 'description': '기사가 할 조치'},
               'box_2d': box,
             },
-            'required': ['type', 'description', 'severity', 'action'],
+            'required': ['category', 'type', 'description', 'action'],
             'additionalProperties': false,
           },
         },
@@ -184,7 +186,7 @@ class ClaudeHazardAnalyzer implements HazardAnalyzer {
         if (b is Map && b['type'] == 'text') b['text']
     ].firstOrNull;
     if (text is! String) throw StateError('Claude 응답 형식 이상: ${_clip(raw)}');
-    return HazardReport.fromJson(jsonDecode(text) as Map<String, dynamic>,
+    return HazardReport.fromAi(jsonDecode(text) as Map<String, dynamic>,
         sw.elapsedMilliseconds, await encodedImageSize(jpeg));
   }
 

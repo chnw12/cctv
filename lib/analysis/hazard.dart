@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'hazard_rules.dart';
 
 enum Severity { high, medium, low }
 
@@ -11,6 +12,26 @@ class Hazard {
   final String description;
   final Severity severity;
   final String action;
+
+  /// 위험 종류([HazardRules]의 key). AI가 목록에서 고르고, 등급은 규칙표가 정함. 예전 기록·직접 기록은 null
+  final String? category;
+
+  /// 올림 규칙으로 등급이 바뀐 이유(없으면 null)
+  final String? ruleNote;
+
+  /// 이 위험에 적용된 규칙(종류 이름·관련 기준). 종류가 없거나 모르는 값이면 null
+  HazardRule? get rule => HazardRules.of(category);
+
+  /// 기록 화면·공유 글에 붙이는 한 줄: "분류 누수·누유 · 관련 기준(참고): …". 규칙이 없으면 null
+  String? get ruleLine {
+    final r = rule;
+    if (r == null) return null;
+    return [
+      '분류: ${r.label}',
+      if (ruleNote != null) ruleNote!,
+      if (r.basis.isNotEmpty) '관련 기준(참고): ${r.basis.join(' / ')}',
+    ].join(' · ');
+  }
 
   /// 스냅샷 기준 0..1 정규화 위치. AI가 위치를 못 짚으면 null
   final Rect? box;
@@ -30,6 +51,8 @@ class Hazard {
     required this.description,
     required this.severity,
     required this.action,
+    this.category,
+    this.ruleNote,
     this.box,
     this.status = HazardStatus.open,
     this.statusAt,
@@ -52,6 +75,8 @@ class Hazard {
         description: j['description'] as String? ?? '',
         severity: Severity.values.asNameMap()[j['severity']] ?? Severity.low,
         action: j['action'] as String? ?? '',
+        category: j['category'] as String?,
+        ruleNote: j['rule_note'] as String?,
         box: box2d(j['box_2d']),
         status:
             HazardStatus.values.asNameMap()[j['status']] ?? HazardStatus.open,
@@ -66,6 +91,8 @@ class Hazard {
         'description': description,
         'severity': severity.name,
         'action': action,
+        if (category != null) 'category': category,
+        if (ruleNote != null) 'rule_note': ruleNote,
         if (box != null)
           'box_2d': [box!.top, box!.left, box!.bottom, box!.right]
               .map((v) => (v * 1000).round())
@@ -167,6 +194,18 @@ class HazardReport {
             if (Equipment.fromJson(e as Map<String, dynamic>) case final eq?) eq
         ],
       );
+
+  /// AI 답을 읽을 때: 규칙표([HazardRules.apply])로 등급을 정한 뒤 읽음.
+  /// 저장된 기록을 다시 읽을 때는 [HazardReport.fromJson] — 그때 정한 등급을 그대로 둠(규칙표가 나중에 바뀌어도 기록은 안 바뀜)
+  factory HazardReport.fromAi(
+          Map<String, dynamic> j, int elapsedMs, Size imageSize) =>
+      HazardReport.fromJson({
+        ...j,
+        'hazards': HazardRules.apply([
+          for (final h in j['hazards'] as List? ?? const [])
+            (h as Map).cast<String, dynamic>()
+        ]),
+      }, elapsedMs, imageSize);
 
   /// 저장용(요약·위험요소·설비). 시간·크기는 저장하는 쪽에서 따로 보관
   Map<String, dynamic> toJson() => {

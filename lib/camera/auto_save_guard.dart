@@ -16,7 +16,11 @@ class AutoSaveGuard {
   bool shouldSave(HazardReport r) {
     if (r.hazards.isEmpty) return false;
     final t = _now();
-    final kinds = r.hazards.map((h) => _key(h.type)).toSet();
+    // 종류(category)가 있으면 그것으로: AI가 "바닥 물기"·"바닥 물 고임"처럼 이름을 다르게 써도 같은 위험
+    final kinds = r.hazards
+        .map((h) =>
+            h.rule != null && h.category != 'other' ? h.category! : _key(h.type))
+        .toSet();
     final hasNew = kinds.any(
         (k) => _lastSaved[k] == null || t.difference(_lastSaved[k]!) > window);
     if (hasNew) {

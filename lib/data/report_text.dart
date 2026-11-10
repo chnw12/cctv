@@ -37,6 +37,8 @@ String inspectionReportText(Inspection i) {
       };
       b.writeln('   - [${_label(h.severity)}] ${h.type}$st: '
           '${h.description} → ${h.action}');
+      // 등급을 정한 규칙(종류)과 관련 기준 — 왜 이 등급인지 받는 사람도 알 수 있게
+      if (h.ruleLine != null) b.writeln('     ${h.ruleLine}');
     }
     if (f.memo.isNotEmpty) b.writeln('   메모: ${f.memo}');
   }

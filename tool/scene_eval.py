@@ -198,7 +198,8 @@ def load_answers():
 
 
 def hz_cat(h):
-    return category(h['type'] + ' ' + h.get('description', ''))
+    # 규칙표 방식(11/10~)은 AI가 고른 종류가 그대로 있음. 그 전 결과는 글자에서 대략 묶음
+    return h.get('category') or category(h['type'] + ' ' + h.get('description', ''))
 
 
 # 1백만 토큰당 달러(입력, 출력). Claude 응답의 usage로 비용 어림

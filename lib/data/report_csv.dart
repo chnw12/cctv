@@ -21,6 +21,7 @@ String _status(HazardStatus s) => switch (s) {
     };
 
 /// 엑셀·업무일지용 CSV: 위험요소 한 줄씩(위험이 없는 기록은 요약 한 줄).
+/// 분류·관련 기준: 등급을 정한 규칙표의 종류와 참고 법령(AI가 종류를 고른 기록만)
 /// 처리: 위험별 완료·무시(카메라 화면·기록 화면에서 누른 것), 조치후사진: 완료 때 찍은 사진 파일
 /// 엑셀에서 한글이 깨지지 않게 맨 앞에 BOM을 붙임
 String inspectionCsv(Inspection i) {
@@ -30,9 +31,11 @@ String inspectionCsv(Inspection i) {
       '시각',
       '기록 방식',
       '심각도',
+      '분류',
       '위험',
       '근거',
       '조치',
+      '관련 기준(참고)',
       '처리',
       '조치후사진',
       '조치완료',
@@ -56,15 +59,20 @@ String inspectionCsv(Inspection i) {
       f.report.summary
     ];
     if (f.report.hazards.isEmpty) {
-      rows.add([...common, '', '', '', '', '', '', ...tail]);
+      rows.add([...common, '', '', '', '', '', '', '', '', ...tail]);
     }
     for (final h in f.report.hazards) {
       rows.add([
         ...common,
         _label(h.severity),
+        // 분류: 규칙표의 종류(등급은 이 종류로 정해짐). 올림 규칙이 적용됐으면 이유도
+        h.rule == null
+            ? ''
+            : '${h.rule!.label}${h.ruleNote == null ? '' : ' (${h.ruleNote})'}',
         h.type,
         h.description,
         h.action,
+        h.rule?.basis.join(' / ') ?? '',
         _status(h.status),
         h.afterPhoto ?? '',
         ...tail,

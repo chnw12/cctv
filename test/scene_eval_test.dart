@@ -18,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 ///   SCENE_GAP_MS 호출 사이 쉬는 시간(기본 7000 — 무료 키 분당 한도)
 ///   SCENE_PLACE  점검 장소(앱처럼 지시문 앞에 붙음, 기본 없음)
 ///   SCENE_FRESH  true면 지난 결과를 버리고 처음부터(기본은 성공한 것은 건너뛰고 이어서)
+///   SCENE_TAG    결과 파일 이름 뒤에 붙일 꼬리표(예: rules) — 지시문·규칙을 바꾼 전후를 따로 남길 때
 ///   SCENE_MAX_CALLS 이번에 쓸 최대 호출 수(기본 0 = 제한 없음). 하루 한도 일부를 폰 점검용으로 남길 때
 /// 결과: build/scene_eval/results.jsonl(한 줄 = 한 번 호출), annotated/<사진>.png(첫 실행 박스)
 /// 무료 키는 모델마다 하루 20번까지라(2026-11-09 확인, 한국 시간 오후 5시쯤 초기화) 한 번에 다 못 돌 수 있음 →
@@ -51,13 +52,18 @@ const _place = String.fromEnvironment('SCENE_PLACE');
 const _fresh = bool.fromEnvironment('SCENE_FRESH');
 const _maxCalls = int.fromEnvironment('SCENE_MAX_CALLS');
 const _out = 'build/scene_eval';
+// 지시문·규칙을 바꾼 뒤 같은 사진으로 다시 잴 때: SCENE_TAG=rules → results_<모델>-rules.jsonl(앞선 결과를 덮지 않음)
+const _runTag = String.fromEnvironment('SCENE_TAG');
+const _sfx = _runTag == '' ? '' : '-$_runTag';
 const _tag = _claude
-    ? '$_claudeModel+$_claudeEffort'
-    : '$_model${_thinking == '' ? '' : '+$_thinking'}';
-const _results =
-    _claude ? '$_out/results_$_claudeModel.jsonl' : '$_out/results.jsonl';
-const _annotated =
-    _claude ? '$_out/annotated_$_claudeModel' : '$_out/annotated';
+    ? '$_claudeModel+$_claudeEffort$_sfx'
+    : '$_model${_thinking == '' ? '' : '+$_thinking'}$_sfx';
+const _results = _claude
+    ? '$_out/results_$_claudeModel$_sfx.jsonl'
+    : '$_out/results$_sfx.jsonl';
+const _annotated = _claude
+    ? '$_out/annotated_$_claudeModel$_sfx'
+    : '$_out/annotated$_sfx';
 
 void main() {
   final dir = Directory(_dir);
@@ -135,7 +141,7 @@ void main() {
             }
             // ignore: avoid_print
             print('$name #$run ${r.elapsedMs}ms 위험 ${r.hazards.length}개: '
-                '${r.hazards.map((h) => '${h.severity.name} ${h.type}').join(' · ')}');
+                '${r.hazards.map((h) => '${h.severity.name} ${h.category ?? '-'} ${h.type}').join(' · ')}');
             if (run == 1) {
               await _saveAnnotated(jpeg, r, '$_annotated/$name.png');
             }

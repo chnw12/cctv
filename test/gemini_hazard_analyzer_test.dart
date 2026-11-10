@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:facility_camera/analysis/gemini_hazard_analyzer.dart';
 import 'package:facility_camera/analysis/hazard.dart';
+import 'package:facility_camera/analysis/hazard_rules.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -82,14 +83,24 @@ void main() {
             .having((e) => e.message, 'message', contains('429'))));
   });
 
-  test('지시문에 심각도 기준표: 등급별 기준과 "물기 + 전기 = high" 규칙', () {
+  test('지시문: AI는 위험 종류만 고르고 등급은 정하지 않음(등급은 앱의 규칙표)', () {
     final p = GeminiHazardAnalyzer.promptFor(null);
-    expect(p, contains('severity는 아래 기준으로만'));
-    for (final s in ['- high:', '- medium:', '- low:']) {
-      expect(p, contains(s));
+    expect(p, contains('위험 등급은 앱의 규칙표가 정하므로 네가 정하지 않는다'));
+    // 규칙표의 모든 종류가 지시문과 답 형식에 그대로 들어감(목록이 한 곳에서만 관리됨)
+    for (final r in HazardRules.all) {
+      expect(p, contains('- ${r.key}(${r.label}): '));
     }
-    expect(p, contains('바닥에 널린 부품')); // 개발 동기(바닥 적치물)
-    expect(p, contains('함께 보이면 반드시 high'));
+    final item = (GeminiHazardAnalyzer.schemaFor()['properties'] as Map)['hazards']
+        ['items'] as Map;
+    expect(item['properties']['category']['enum'], HazardRules.keys);
+    expect(item['required'], contains('category'));
+    // AI에게 등급을 묻지 않음(등급 이름도 알려 주지 않음)
+    expect((item['properties'] as Map).keys, isNot(contains('severity')));
+    expect(p, isNot(contains('severity')));
+    expect(p, isNot(contains('high')));
+    expect(p, contains('바닥·통로에 널린 부품')); // 개발 동기(바닥 적치물)
+    // 물기 + 전기설비는 따로 고르게(이 종류가 규칙표에서 위험)
+    expect(p, contains('leak이 아니라 water_near_electrical'));
   });
 
   test('점검 장소를 프롬프트 맨 앞에 넣음(없으면 그대로)', () async {

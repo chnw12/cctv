@@ -17,21 +17,21 @@ class FakeHazardAnalyzer implements HazardAnalyzer {
       {String? place, bool equipment = false}) async {
     final size = await encodedImageSize(jpeg);
     await Future<void>.delayed(const Duration(milliseconds: 800));
-    return HazardReport.fromJson({
+    return HazardReport.fromAi({
       'summary': '(가짜 응답) 스냅샷 ${size.width.toInt()}x${size.height.toInt()}, '
           '${(jpeg.length / 1024).round()}KB',
       'hazards': [
         {
+          'category': 'live_part_exposed',
           'type': '테스트 위험',
           'description': '가운데 영역 표시 확인용',
-          'severity': 'high',
           'action': '박스가 화면 가운데에 그려지는지 확인',
           'box_2d': [400, 300, 600, 700],
         },
         {
+          'category': 'floor_obstacle',
           'type': '테스트 주의',
           'description': '왼쪽 위 모서리',
-          'severity': 'medium',
           'action': '모서리 좌표 확인',
           'box_2d': [0, 0, 150, 250],
         },
