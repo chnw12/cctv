@@ -1,10 +1,11 @@
 # 진행 기록 (Claude 작업 메모)
 
-컨텍스트가 압축되거나 세션이 바뀌어도 여기서 이어서 작업합니다. 마지막 갱신: 2026-11-09 (2차 검증 반영: 보조 점검원 역할 설명, 무시 = 오탐, 기록 방식 표시. 리포트 11/12 13:00, 기능 동결 11/12, 대회 11/13)
+컨텍스트가 압축되거나 세션이 바뀌어도 여기서 이어서 작업합니다. 마지막 갱신: 2026-11-10 (AI를 Claude Sonnet 5.5로 바꿈) · 2026-11-09 (2차 검증 반영: 보조 점검원 역할 설명, 무시 = 오탐, 기록 방식 표시. 리포트 11/12 13:00, 기능 동결 11/12, 대회 11/13)
 
 ## 현재 상태 한 줄
 앱 뼈대(홈·점검·기록·설정) + 카메라 모듈(탐지·자율주행식 추적·자이로·AI 점검) + 점검 기록·공유까지 동작.
 실제 Gemini 키(gemini-3-flash-preview)로 에뮬레이터·**실기기(갤럭시 Z Flip7)** 에서 동작 확인.
+11/10부터 앱 기본 AI는 **Claude Sonnet 5.5**(키는 `.env`, PC에서 앱과 같은 경로로 실제 호출 확인. 새 AI로 실기기 확인은 아직).
 역할: 점검은 사람이 메인, 앱은 사람이 놓친 것을 짚어 주는 보조 점검원(CCTV·자동 점검 아님).
 가만히 있을 때 번호가 새로 생기던 문제는 고침(정지 8.2초 새 번호 0개). 남은 것: 움직일 때 새 번호 분당 약 24개(탐지기 문제),
 위험 판단 정확도·사람 대비 추가 발견 효과는 아직 안 잼, 위험 판단은 전부 AI(앱 안 규칙 없음), 사람이 등급 고치기·위험 추가 없음.
@@ -113,6 +114,20 @@
 - (11/03 저녁) 설비 탐지기 작업을 이어서 정리한 뒤, 사용자 요청("사람이 읽기 편하게")으로 **전체를 다시 씀**:
   맨 앞 3분 요약·용어 풀이, 1 동작 방식 → 2 위험 판단 → 3 선정 이유(3-7 설비 탐지기) → 4 참고 기법 → 5 실제 폰 결과 → 6 할 일
   (6-2 기계실 방문 계획 11/04, 6-4 AR 현황 갱신), 부록 A 시나리오 전체(최신 수치)·B 응답 형식·C analyses.jsonl·D 파일 위치
+
+## AI를 Claude Sonnet 5.5로 (2026-11-10)
+- 계기: Gemini 무료 키가 **모델별 하루 20번**(11/09 확인) → 리허설·시연·반복 시험을 나눠 쓸 수 없음. 사용자가 Claude 콘솔 키를 받아 비교 후 전환 결정.
+- 비교(`tool/scene_eval.py`, `test/scene_eval_test.dart`): 위키미디어 공용 기계실 사진 16장(`build/scene_eval/images`, 출처 `sources.csv`) × 3번, 앱과 같은 지시문.
+  | 모델 | 응답 중앙값 | 최고 등급 3번 모두 같음 | 같은 분류의 등급 같음 | 실행끼리 분류 겹침 | 박스 | 48번 비용 |
+  |---|---|---|---|---|---|---|
+  | claude-sonnet-5-5 (effort low) | 4.1초 | 14/16 | 23/26 | 71% | 99% | 0.38달러 |
+  | claude-opus-5-5 (effort low) | 6.2초 | 13/16 | 30/34 | 59% | 100% | 0.81달러 |
+  | gemini-3-flash-preview (thinking low) | 4.2초(13번) | 하루 한도로 5장만(여러 번 돈 건 2장) | - | - | 100% | 무료 |
+- 직접 그린 그림 3장(`assets/test_frames`): Gemini는 2번씩 넣으면 3장 모두 최고 등급이 달랐음(11/09). Sonnet은 "추상적인 장면"이라고 보고 관찰~주의로 낮게 냄(도형을 분전반으로 넘겨짚지 않음) → 시험·시연은 실제 사진으로.
+- 구현: `lib/analysis/claude_hazard_analyzer.dart`(Messages API, API 버전 2026-10-21, `output_config.format`으로 JSON 강제, effort low, 500·529 한 번 재시도, 요금·키·한도 오류 한국어 안내), `default_analyzer.dart`(FAKE_AI → AI_PROVIDER → Claude 키 있으면 Claude, 없으면 Gemini). 지시문은 `GeminiHazardAnalyzer.promptFor` 하나를 같이 씀.
+- 키: `.env`의 `CLAUDE_EVAL_KEY`(gitignore). 빌드에 `--dart-define-from-file=.env`를 붙이면 APK에 들어감 → APK는 팀 안에서만, 콘솔 지출 한도, 대회 뒤 키 삭제.
+- 빌드: `flutter build apk --release --split-per-abi --target-platform android-arm64 --dart-define-from-file=secrets.json --dart-define-from-file=.env`
+- 남은 것: 팀 정답표(`build/scene_eval/answers.csv`) 채운 뒤 사람 정답 비교(`python tool/scene_eval.py compare`), 새 APK로 실기기 확인, 등급을 앱 규칙표가 정하게(대회 뒤).
 
 ## 2차 검증(보조 점검원 관점) 반영 (2026-11-09)
 - 다른 AI의 2차 검증 21건을 코드로 판정: 맞음 15·일부 맞음 6·틀림 0(검증자는 공개본 fc0f52a 기준). 그중 마감 전 필수만 반영

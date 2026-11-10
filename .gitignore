@@ -45,3 +45,6 @@ app.*.map.json
 /android/app/release
 # API 키 파일은 절대 커밋하지 않기
 secrets.json
+
+# PC 시험 도구용 비밀 키(Claude 등) — 저장소에 올리지 않음, 앱에도 안 넣음
+.env

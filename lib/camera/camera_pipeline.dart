@@ -5,8 +5,7 @@ import 'package:camera/camera.dart' show CameraException;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
-import '../analysis/fake_hazard_analyzer.dart';
-import '../analysis/gemini_hazard_analyzer.dart';
+import '../analysis/default_analyzer.dart';
 import '../analysis/hazard.dart';
 import '../analysis/hazard_analyzer.dart';
 import '../core/frame.dart';
@@ -73,10 +72,7 @@ class CameraPipeline extends ChangeNotifier {
     this.motionFactory,
     this.handFactory,
     this.logDir,
-  }) : analyzer = analyzer ??
-            (const bool.fromEnvironment('FAKE_AI')
-                ? FakeHazardAnalyzer()
-                : GeminiHazardAnalyzer()) {
+  }) : analyzer = analyzer ?? createDefaultAnalyzer() {
     _autoAi = settings.autoAi;
     _cameraKey = _keyOf(settings);
     settings.addListener(_onSettings);

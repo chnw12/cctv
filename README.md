@@ -1,7 +1,7 @@
 # 시설기사 안전카메라
 
 시설기사가 기계실·전기실을 직접 점검할 때, 기사가 비춘 장면에서 놓쳤을 수 있는 위험을 AI가 한 번 더 짚어 주는 **보조 점검 앱**입니다(CCTV·자동 점검이 아니며, 최종 판단은 기사가 합니다).
-실시간으로 물체를 탐지·추적하고(위치만), 버튼(또는 볼륨 키)을 누르면 Gemini가 그 사진 한 장을 보고 위험 후보와 위치를 알려 줍니다.
+실시간으로 물체를 탐지·추적하고(위치만), 버튼(또는 볼륨 키)을 누르면 AI(Claude Sonnet 5.5)가 그 사진 한 장을 보고 위험 후보와 위치를 알려 줍니다.
 결과는 사진과 함께 점검 기록으로 남고, 메신저로 바로 공유할 수 있습니다.
 
 > 카메라 작동 방식·참고 기법·선정 이유와 비교군·위험도 기준·앞으로 할 일(AR·에이전트·분석 데이터)은 `APP_OVERVIEW.md`에 정리돼 있습니다.
@@ -10,10 +10,13 @@
 
 ## 세팅
 1. `flutter pub get`
-2. Gemini 키: `secrets.example.json`을 `secrets.json`으로 복사하고 `GEMINI_API_KEY`에 키 입력 (gitignore 대상)
-3. 폰 USB 디버깅 연결 → `flutter run --release --dart-define-from-file=secrets.json`
+2. AI 키(둘 다 gitignore 대상, 저장소에 올리지 않음)
+   - Claude(기본): `.env.example`을 `.env`로 복사하고 `CLAUDE_EVAL_KEY=` 뒤에 키 입력
+   - Gemini(예비): `secrets.example.json`을 `secrets.json`으로 복사하고 `GEMINI_API_KEY`에 키 입력
+3. 폰 USB 디버깅 연결 → `flutter run --release --dart-define-from-file=secrets.json --dart-define-from-file=.env`
    (성능 측정은 반드시 release로. debug는 FPS가 훨씬 낮게 나옴)
-- APK만 만들기: `flutter build apk --release --dart-define-from-file=secrets.json`
+- APK만 만들기: `flutter build apk --release --split-per-abi --dart-define-from-file=secrets.json --dart-define-from-file=.env`
+- 어느 AI로 빌드됐는지는 홈 화면 AI 카드에 나옴. `.env`를 빼면 Gemini로 빌드됨(`--dart-define=AI_PROVIDER=claude` 또는 `gemini`로 고정 가능, `lib/analysis/default_analyzer.dart`)
 - 키 없이 화면 흐름만 볼 때: `--dart-define=FAKE_AI=true` (가짜 응답, 네트워크 안 씀)
 - ※ 앱에 키를 넣으면 APK에서 추출 가능 → 대회 시연용은 OK, 실서비스는 서버 경유. APK를 공개 배포하지 마세요.
 
@@ -30,14 +33,15 @@
 기록은 기기 안(앱 전용 폴더)에 JSON + 사진으로 저장되어 인터넷이 없어도 동작합니다.
 
 ## AI 위험요소 점검
-- 모델: `secrets.json`의 `GEMINI_MODEL` (기본 `gemini-3-flash-preview`), 생각 정도 `GEMINI_THINKING` (기본 `low`)
+- 모델: 기본 **Claude Sonnet 5.5**(`claude-sonnet-5-5`, 생각 깊이 `low`. `--dart-define=CLAUDE_MODEL=…`·`CLAUDE_EFFORT=…`로 바꿈). 11/10에 공개 기계실 사진 16장 × 3번으로 비교해 고름(`APP_OVERVIEW.md` 3-6). 쓴 만큼 요금이 나가므로 Claude 콘솔에서 지출 한도를 걸 것
+- 예비: Gemini — `secrets.json`의 `GEMINI_MODEL` (기본 `gemini-3-flash-preview`), 생각 정도 `GEMINI_THINKING` (기본 `low`). 무료 키는 하루 20번 한도
   - 2.5 Flash는 새 키로는 404("새 사용자 제공 안 함"). 비교 결과는 PROGRESS.md
 - 손이 흔들리는 중이면 자이로가 조용해질 때까지(최대 0.7초) 기다렸다 찍어 흐린 사진을 줄입니다.
 - 카메라 스트림을 멈추지 않고 촬영 → 긴 변 1024px로 줄여 전송 → 위험요소(심각도·근거·조치)와 위치(box_2d)
 - 찍은 뒤 폰을 움직여도 위험 표시가 실제 위치에 붙어 있게: 위험이 추적 중인 물체 안에 있으면 그 물체를 따라가고,
   아니면 자이로 회전량만큼 옮겨 그립니다.
 - 점검 장소(예: "B2 기계실")를 프롬프트에 넣어 장소에 맞는 위험을 먼저 봅니다.
-- 서버 과부하(500·503)는 한 번 자동 재시도, 오류는 한국어로 안내(키·권한·모델·한도·서버·네트워크·안전 필터)
+- 서버 과부하(Claude 500·529, Gemini 500·503)는 한 번 자동 재시도, 오류는 한국어로 안내(키·권한·모델·한도·요금·서버·네트워크·거절)
 
 ## 물체 추적 (자율주행 인지 기법 참고)
 ML Kit은 프레임마다 독립 탐지(single 모드)만 하고, ID는 `TrackingDetector`가 붙입니다.
@@ -57,6 +61,8 @@ ML Kit은 프레임마다 독립 탐지(single 모드)만 하고, ID는 `Trackin
 - 추적 시나리오 비교표: `flutter test test/tracking_scenarios_test.dart -r expanded`
 - 실제 Gemini 확인(박스 그린 그림은 `build/gemini_live/`):
   `flutter test test/gemini_live_test.dart --dart-define-from-file=secrets.json -r expanded`
+- AI 반복·비교 시험(공개 기계실 사진으로 같은 사진의 등급이 매번 같은지, 순서는 `tool/scene_eval.py` 머리말):
+  `flutter test test/scene_eval_test.dart --dart-define-from-file=.env --dart-define=SCENE_PROVIDER=claude --dart-define=SCENE_MODEL=claude-sonnet-5-5 --dart-define=SCENE_REPEAT=3 -r expanded` → `python tool/scene_eval.py compare`
 - 테스트 사진: `assets/test_frames/`에 기계실 사진(jpg/png) → 설정 > 카메라 테스트 화면 > "테스트 이미지"
 
 ## 구조
@@ -68,7 +74,7 @@ lib/
   sources/                     FrameSource(폰 카메라·테스트 이미지; 오즈모는 여기에 추가)
   detection/                   ML Kit, 추적기(칼만·헝가리안)
   motion/                      자이로 카메라 움직임
-  analysis/                    Gemini·가짜 분석기, 위험요소 모델
+  analysis/                    Claude(기본)·Gemini·가짜 분석기, AI 고르기, 위험요소 모델
   data/                        점검 기록 저장소·설정·요약·공유·나중에 분석
 android/.../MainActivity.kt    볼륨 키를 점검 화면에 전달
 ```

@@ -2,8 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'analysis/fake_hazard_analyzer.dart';
-import 'analysis/gemini_hazard_analyzer.dart';
+import 'analysis/default_analyzer.dart';
 import 'app/app.dart';
 import 'core/app_log.dart';
 import 'data/app_settings.dart';
@@ -28,8 +27,6 @@ Future<void> main() async {
   runApp(FacilityApp(
     settings: settings,
     repo: repo,
-    analyzer: const bool.fromEnvironment('FAKE_AI')
-        ? FakeHazardAnalyzer()
-        : GeminiHazardAnalyzer(),
+    analyzer: createDefaultAnalyzer(),
   ));
 }

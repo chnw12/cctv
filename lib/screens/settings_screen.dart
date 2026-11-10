@@ -104,7 +104,7 @@ class SettingsScreen extends StatelessWidget {
                       : Colors.orangeAccent),
               title: Text(ai.description),
               subtitle: Text(ai.unavailableReason ??
-                  '모델·키는 secrets.json에서 바꿉니다(앱 다시 빌드 필요)'),
+                  '모델·키는 빌드할 때 정합니다(.env·secrets.json, 앱 다시 빌드 필요)'),
             ),
             SwitchListTile(
               title: const Text('자동 점검을 켠 채로 시작'),

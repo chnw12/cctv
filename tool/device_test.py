@@ -104,7 +104,7 @@ def install(serial, abis, reinstall):
     apk = APK_DIR / f'app-{abi}-release.apk'
     if not abi:
         sys.exit(f'{apk.name}이 없습니다. 먼저 빌드하세요:\n'
-                 '  flutter build apk --release --split-per-abi --dart-define-from-file=secrets.json')
+                 '  flutter build apk --release --split-per-abi --dart-define-from-file=secrets.json --dart-define-from-file=.env')
     if reinstall:
         print('기존 앱 삭제(점검 기록도 지워짐)…')
         adb(serial, 'uninstall', PKG)
